@@ -1,21 +1,14 @@
 version: "3.8"
 
 services:
-  producer:
+  mail:
     build: .
-    command: node producer.js
+    command: node src/index.js
     ports:
       - "3001:3001"
     environment:
       RABBITMQ_URL: ${RABBITMQ_URL}
       QUEUE_NAME: email_queue
       PORT: 3001
-
-  consumer:
-    build: .
-    command: node consumer.js
-    environment:
-      RABBITMQ_URL: ${RABBITMQ_URL}
-      QUEUE_NAME: email_queue
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}

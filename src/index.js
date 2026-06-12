@@ -14,18 +14,15 @@ app.use(express.json());
 
 let publishChannel = null;
 
-async function connectRabbitMQ() {
-  const connection = await amqp.connect(RABBITMQ_URL);
-  const channel    = await connection.createChannel();
-  await channel.assertQueue(QUEUE_NAME, { durable: true });
-  return channel;
-}
-
 app.post("/send-email", async (req, res) => {
   const { to, tipoAviso, fecha, hora, fechaAnterior, horaAnterior, fechaNueva, horaNueva } = req.body;
 
   if (!to || !tipoAviso) {
     return res.status(400).json({ error: "Faltan campos requeridos: to, tipoAviso" });
+  }
+
+  if (!publishChannel) {
+    return res.status(503).json({ error: "RabbitMQ aún no está listo, reintenta en unos segundos" });
   }
 
   let email;
@@ -65,50 +62,56 @@ app.post("/send-email", async (req, res) => {
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-async function startConsumer(channel) {
-  await transporter.verify();
-  console.log("[consumer] Gmail SMTP listo");
+app.listen(PORT, () => {
+  console.log(`[server] Escuchando en puerto ${PORT}`);
+});
 
-  channel.prefetch(1);
-  console.log(`[consumer] Esperando correos en la cola: "${QUEUE_NAME}"\n`);
-
-  channel.consume(QUEUE_NAME, async (msg) => {
-    if (!msg) return;
-
-    const payload = JSON.parse(msg.content.toString());
-    console.log(`[consumer] Enviando → ${payload.to} | "${payload.subject}"`);
+async function startBackgroundServices() {
+  try {
+    const connection = await amqp.connect(RABBITMQ_URL);
+    const channel    = await connection.createChannel();
+    await channel.assertQueue(QUEUE_NAME, { durable: true });
+    publishChannel = channel;
+    console.log("[rabbitmq] Conectado a RabbitMQ");
 
     try {
-      const result = await transporter.sendMail({
-        from:    `"RedNorte Notificaciones" <${GMAIL_USER}>`,
-        to:      payload.to,
-        subject: payload.subject,
-        text:    payload.text,
-      });
-
-      console.log(`[consumer] Enviado! Message ID: ${result.messageId}\n`);
-      channel.ack(msg);
-
-    } catch (err) {
-      console.error(`[consumer] Falló: ${err.message}\n`);
-      const requeue = !msg.fields.redelivered;
-      channel.nack(msg, false, requeue);
+      await transporter.verify();
+      console.log("[consumer] Gmail SMTP listo");
+    } catch (gmailErr) {
+      console.warn("[consumer] Gmail SMTP no disponible:", gmailErr.message);
     }
-  });
+
+    channel.prefetch(1);
+    console.log(`[consumer] Esperando correos en la cola: "${QUEUE_NAME}"`);
+
+    channel.consume(QUEUE_NAME, async (msg) => {
+      if (!msg) return;
+
+      const payload = JSON.parse(msg.content.toString());
+      console.log(`[consumer] Enviando → ${payload.to} | "${payload.subject}"`);
+
+      try {
+        const result = await transporter.sendMail({
+          from:    `"RedNorte Notificaciones" <${GMAIL_USER}>`,
+          to:      payload.to,
+          subject: payload.subject,
+          text:    payload.text,
+        });
+
+        console.log(`[consumer] Enviado! Message ID: ${result.messageId}`);
+        channel.ack(msg);
+
+      } catch (err) {
+        console.error(`[consumer] Falló: ${err.message}`);
+        const requeue = !msg.fields.redelivered;
+        channel.nack(msg, false, requeue);
+      }
+    });
+
+  } catch (err) {
+    console.error("[startup] Error conectando servicios:", err.message);
+    process.exit(1);
+  }
 }
 
-async function main() {
-  publishChannel = await connectRabbitMQ();
-  console.log("[rabbitmq] Conectado a RabbitMQ");
-
-  await startConsumer(publishChannel);
-
-  app.listen(PORT, () => {
-    console.log(`[server] Escuchando en puerto ${PORT}`);
-  });
-}
-
-main().catch((err) => {
-  console.error("Error fatal:", err.message);
-  process.exit(1);
-});
+startBackgroundServices();
