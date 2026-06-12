@@ -1,22 +1,22 @@
 const templates = {
 
-  citaEliminada: (toEmail) => ({
-    to:      toEmail,
-    subject: "Eliminación de cita",
-    text:    "Su cita el dia martes se ha eliminado. Muchas Gracias.",
-  }),
- 
-  citaCambiada: (toEmail, diaAnterior, diaNuevo) => ({
-    to:      toEmail,
-    subject: "Cambio de cita — RedNorte",
-    text:    `Su cita del dia ${diaAnterior} ha sido cambiada al dia ${diaNuevo}. Muchas Gracias.`,
-  }),
-
-  citaConfirmada: (toEmail, dia, hora) => ({
+  citaConfirmada: (toEmail, fecha) => ({
     to:      toEmail,
     subject: "Confirmación de cita — RedNorte",
-    text:    `Su cita ha sido confirmada para el dia ${dia} a las ${hora}. Muchas Gracias.`,
+    text:    `Su cita ha sido confirmada para el día ${fecha}}. Muchas Gracias.\n\nRedNorte Gestión Médica`,
+  }),
+
+  citaEliminada: (toEmail, fecha) => ({
+    to:      toEmail,
+    subject: "Eliminación de cita — RedNorte",
+    text:    `Su cita del día ${fecha} ha sido eliminada. Si tiene dudas, contáctenos.\n\nRedNorte Gestión Médica`,
+  }),
+
+  citaCambiada: (toEmail, fechaAnterior, fechaNueva) => ({
+    to:      toEmail,
+    subject: "Cambio de cita — RedNorte",
+    text:    `Su cita del día ha sido reprogramada al día ${fechaNueva}. Muchas Gracias.\n\nRedNorte Gestión Médica`,
   }),
 };
- 
+
 module.exports = templates;

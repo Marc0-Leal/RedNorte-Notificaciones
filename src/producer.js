@@ -1,9 +1,14 @@
 require("dotenv").config();
-const amqp = require("amqplib");
+const express   = require("express");
+const amqp      = require("amqplib");
 const templates = require("./emails/templates");
 
+const app          = express();
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
 const QUEUE_NAME   = process.env.QUEUE_NAME   || "email_queue";
+const PORT         = process.env.PORT         || 3001;
+
+app.use(express.json());
 
 
 async function queueEmail(email) {
@@ -12,36 +17,64 @@ async function queueEmail(email) {
 
   await channel.assertQueue(QUEUE_NAME, { durable: true });
 
-  const payload = JSON.stringify({ ...email, enqueuedAt: new Date().toISOString() });
-  channel.sendToQueue(QUEUE_NAME, Buffer.from(payload), { persistent: true })
+  channel.sendToQueue(
+    QUEUE_NAME,
+    Buffer.from(JSON.stringify({ ...email, enqueuedAt: new Date().toISOString() })),
+    { persistent: true }
+  );
 
   await channel.close();
   await connection.close();
 }
 
-//Change variable toEmail to GET from the backend
-async function main() {
+app.post("/send-email", async (req, res) => {
+  const {
+    to,
+    tipoAviso,
+    fecha,
+    fechaAnterior,
+    fechaNueva,
+    horaNueva,
+  } = req.body;
 
-  const toEmail    = "ben.avilar@duocuc.cl";
-  const tipoAviso  = "citaConfirmada"; // Variable para tipo de notificación: citaEliminada: eliminacíon de cita | citaCambiada:  Cambio de cita. | citaConfirmada: Cita aceptada
+  if (!to || !tipoAviso) {
+    return res.status(400).json({ error: "Faltan campos requeridos: to, tipoAviso" });
+  }
 
   let email;
 
-  if(tipoAviso == "citaEliminada"){
-    email = templates.citaEliminada(toEmail);
-  } else if (tipoAviso === "citaCambiada") {
-    email = templates.citaCambiada(toEmail, "martes", "jueves");
-  } else if (tipoAviso === "citaConfirmada") {
-    email = templates.citaConfirmada(toEmail, "viernes", "10:00");
-  } else {
-    console.error(`Error, aviso desconocido "${tipoAviso}"`);
-    process.exit(1);
-  }
-  await queueEmail(email);
-  console.log("correo enviado.");
-}
+  if (tipoAviso === "citaConfirmada") {
+    if (!fecha || !hora)
+      return res.status(400).json({ error: "citaConfirmada requiere: fecha" });
+    email = templates.citaConfirmada(to, fecha);
 
-main().catch((err) => {
-  console.error("Producer error:", err.message);
-  process.exit(1);
+  } else if (tipoAviso === "citaEliminada") {
+    if (!fecha || !hora)
+      return res.status(400).json({ error: "citaEliminada requiere: fecha" });
+    email = templates.citaEliminada(to, fecha);
+
+  } else if (tipoAviso === "citaCambiada") {
+    if (!fechaAnterior || !horaAnterior || !fechaNueva || !horaNueva)
+      return res.status(400).json({ error: "cita Cambiada requiere: fechaAnterior, fechaNueva" });
+    email = templates.citaCambiada(to, fechaAnterior, fechaNueva);
+
+  } else {
+    return res.status(400).json({ error: `tipoAviso desconocido: "${tipoAviso}"` });
+  }
+
+  try {
+    await queueEmail(email);
+    console.log(`[producer] Queued ${tipoAviso} → ${to}`);
+    res.json({ ok: true, message: `Correo encontrado para ${to}` });
+  } catch (err) {
+    console.error("[producer] Queue error:", err.message);
+    res.status(500).json({ error: "No se pudo encontrar el correo" });
+  }
+});
+
+// ─── Health check ─────────────────────────────────────────────────────────────
+app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+app.listen(PORT, () => {
+  console.log(`[producer] Listening on port ${PORT}`);
 });
