@@ -3,12 +3,10 @@ version: "3.8"
 services:
   mail:
     build: .
-    command: node src/index.js
     ports:
       - "3001:3001"
     environment:
       RABBITMQ_URL: ${RABBITMQ_URL}
       QUEUE_NAME: email_queue
       PORT: 3001
-      GMAIL_USER: ${GMAIL_USER}
-      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      RESEND_API_KEY: ${RESEND_API_KEY}

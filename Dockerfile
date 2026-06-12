@@ -9,4 +9,4 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-CMD ["node", "producer.js"]
+CMD ["node", "src/index.js"]
