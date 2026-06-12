@@ -15,7 +15,7 @@ app.use(express.json());
 let publishChannel = null;
 
 app.post("/send-email", async (req, res) => {
-  const { to, tipoAviso, fecha, hora, fechaAnterior, horaAnterior, fechaNueva, horaNueva } = req.body;
+  const { to, tipoAviso, fecha, fechaAnterior, fechaNueva } = req.body;
 
   if (!to || !tipoAviso) {
     return res.status(400).json({ error: "Faltan campos requeridos: to, tipoAviso" });
@@ -28,19 +28,19 @@ app.post("/send-email", async (req, res) => {
   let email;
 
   if (tipoAviso === "citaConfirmada") {
-    if (!fecha || !hora)
-      return res.status(400).json({ error: "citaConfirmada requiere: fecha, hora" });
-    email = templates.citaConfirmada(to, fecha, hora);
+    if (!fecha)
+      return res.status(400).json({ error: "citaConfirmada requiere: fecha " });
+    email = templates.citaConfirmada(to, fecha);
 
   } else if (tipoAviso === "citaEliminada") {
-    if (!fecha || !hora)
-      return res.status(400).json({ error: "citaEliminada requiere: fecha, hora" });
-    email = templates.citaEliminada(to, fecha, hora);
+    if (!fecha)
+      return res.status(400).json({ error: "citaEliminada requiere: fecha" });
+    email = templates.citaEliminada(to, fecha);
 
   } else if (tipoAviso === "citaCambiada") {
-    if (!fechaAnterior || !horaAnterior || !fechaNueva || !horaNueva)
-      return res.status(400).json({ error: "citaCambiada requiere: fechaAnterior, horaAnterior, fechaNueva, horaNueva" });
-    email = templates.citaCambiada(to, fechaAnterior, horaAnterior, fechaNueva, horaNueva);
+    if (!fechaAnterior || !fechaNueva )
+      return res.status(400).json({ error: "citaCambiada requiere: fechaAnterior, fechaNueva" });
+    email = templates.citaCambiada(to, fechaAnterior, fechaNueva);
 
   } else {
     return res.status(400).json({ error: `tipoAviso desconocido: "${tipoAviso}"` });
@@ -53,10 +53,10 @@ app.post("/send-email", async (req, res) => {
       { persistent: true }
     );
     console.log(`[producer] Queued ${tipoAviso} → ${to}`);
-    res.json({ ok: true, message: `Correo encolado para ${to}` });
+    res.json({ ok: true, message: `Correo en cola para ${to}` });
   } catch (err) {
     console.error("[producer] Queue error:", err.message);
-    res.status(500).json({ error: "No se pudo encolar el correo" });
+    res.status(500).json({ error: "No se pudo poner la cola el correo" });
   }
 });
 
