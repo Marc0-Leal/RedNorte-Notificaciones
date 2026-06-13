@@ -1,59 +1,34 @@
 require("dotenv").config();
-const express = require("express");
-const amqp = require("amqplib");
+const express   = require("express");
+const amqp      = require("amqplib");
 const templates = require("./emails/templates");
-const resend = require('./emails/mailer');
-
-const app = express();
+const mailer    = require("./emails/mailer");
+const validateEmail = require('./middleware/validateEmail');
+const app          = express();
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
-const QUEUE_NAME = process.env.QUEUE_NAME   || "email_queue";
-const PORT = process.env.PORT         || 3001;
+const QUEUE_NAME   = process.env.QUEUE_NAME   || "email_queue";
+const PORT         = process.env.PORT         || 3001;
+const SENDER_EMAIL = process.env.SENDER_EMAIL;
 
 app.use(express.json());
 
 let publishChannel = null;
 
-app.post("/send-email", async (req, res) => {
-  const { to, tipoAviso, fecha, fechaAnterior, fechaNueva } = req.body;
-
-  if (!to || !tipoAviso)
-    return res.status(400).json({ error: "Faltan campos requeridos: to, tipoAviso" });
-
+app.post("/send-email", validateEmail, async (req, res) => {
   if (!publishChannel)
     return res.status(503).json({ error: "RabbitMQ aún no está listo, reintenta en unos segundos" });
-
-  let email;
-
-  if (tipoAviso === "citaConfirmada") {
-    if (!fecha)
-      return res.status(400).json({ error: "citaConfirmada requiere: fecha" });
-    email = templates.citaConfirmada(to, fecha);
-
-  } else if (tipoAviso === "citaEliminada") {
-    if (!fecha)
-      return res.status(400).json({ error: "citaEliminada requiere: fecha" });
-    email = templates.citaEliminada(to, fecha);
-
-  } else if (tipoAviso === "citaCambiada") {
-    if (!fechaAnterior || !fechaNueva)
-      return res.status(400).json({ error: "citaCambiada requiere: fechaAnterior, fechaNueva" });
-    email = templates.citaCambiada(to, fechaAnterior, fechaNueva);
-
-  } else {
-    return res.status(400).json({ error: `tipoAviso desconocido: "${tipoAviso}"` });
-  }
 
   try {
     publishChannel.sendToQueue(
       QUEUE_NAME,
-      Buffer.from(JSON.stringify({ ...email, enqueuedAt: new Date().toISOString() })),
+      Buffer.from(JSON.stringify({ ...req.email, enqueuedAt: new Date().toISOString() })),
       { persistent: true }
     );
-    console.log(`[producer] Queued ${tipoAviso} → ${to}`);
-    res.json({ ok: true, message: `Correo en cola para ${to}` });
+    console.log(`[producer] Queued ${req.body.tipoAviso} → ${req.body.to}`);
+    res.json({ ok: true, message: `Correo en cola para ${req.body.to}` });
   } catch (err) {
     console.error("[producer] Queue error:", err.message);
-    res.status(500).json({ error: "No se pudo encolar el correo" });
+    res.status(500).json({ error: "No se pudo colocar en cola el correo" });
   }
 });
 
@@ -81,16 +56,14 @@ async function startBackgroundServices() {
       console.log(`[consumer] Enviando → ${payload.to} | "${payload.subject}"`);
 
       try {
-        const { data, error } = await resend.emails.send({
-          from:    'RedNorte Notificaciones <onboarding@resend.dev>',
-          to:      payload.to,
-          subject: payload.subject,
-          text:    payload.text,
+        await mailer.sendTransacEmail({
+          sender:      { name: "RedNorte Notificaciones", email: SENDER_EMAIL },
+          to:          [{ email: payload.to }],
+          subject:     payload.subject,
+          textContent: payload.text,
         });
 
-        if (error) throw new Error(error.message);
-
-        console.log(`[consumer] Enviado! ID: ${data.id}`);
+        console.log(`[consumer] Enviado! → ${payload.to}`);
         channel.ack(msg);
 
       } catch (err) {

@@ -1,3 +1,7 @@
-const { Resend } = require('resend');
-const resend = new Resend(process.env.RESEND_API_KEY);
-module.exports = resend;
+const Brevo = require('@getbrevo/brevo');
+
+const client = Brevo.ApiClient.instance;
+client.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
+
+const mailer = new Brevo.TransactionalEmailsApi();
+module.exports = mailer;

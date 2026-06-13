@@ -3,7 +3,7 @@ const templates = {
   citaConfirmada: (toEmail, fecha) => ({
     to:      toEmail,
     subject: "Confirmación de cita — RedNorte",
-    text:    `Su cita ha sido confirmada para el día ${fecha}}. Muchas Gracias.\n\nRedNorte Gestión Médica`,
+    text:    `Su cita ha sido confirmada para el día ${fecha}. Muchas Gracias.\n\nRedNorte Gestión Médica`,
   }),
 
   citaEliminada: (toEmail, fecha) => ({
