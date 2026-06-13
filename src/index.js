@@ -1,14 +1,12 @@
 require("dotenv").config();
 const express   = require("express");
 const amqp      = require("amqplib");
-const templates = require("./emails/templates");
 const sendEmail = require('./emails/mailer');
 const validateEmail = require('./middleware/validateEmail');
 const app          = express();
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
 const QUEUE_NAME   = process.env.QUEUE_NAME   || "email_queue";
 const PORT         = process.env.PORT         || 3001;
-const SENDER_EMAIL = process.env.SENDER_EMAIL;
 
 app.use(express.json());
 
