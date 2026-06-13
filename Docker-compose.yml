@@ -7,8 +7,8 @@ services:
     ports:
       - "3001:3001"
     environment:
-      RABBITMQ_URL: ${RABBITMQ_URL}
-      QUEUE_NAME: email_queue
-      PORT: 3001
-      GMAIL_USER: ${GMAIL_USER}
-      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      RABBITMQ_URL:  ${RABBITMQ_URL}
+      QUEUE_NAME:    email_queue
+      PORT:          3001
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      SENDER_EMAIL:  ${SENDER_EMAIL}
