@@ -72,7 +72,6 @@ async function startBackgroundServices() {
         channel.nack(msg, false, requeue);
       }
     });
-
   } catch (err) {
     console.error("[startup] Error conectando servicios:", err.message);
     process.exit(1);
