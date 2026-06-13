@@ -3,7 +3,6 @@ version: "3.8"
 services:
   mail:
     build: .
-    command: node src/index.js
     ports:
       - "3001:3001"
     environment:

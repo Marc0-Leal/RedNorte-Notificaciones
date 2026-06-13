@@ -1,62 +1,34 @@
 require("dotenv").config();
-const express     = require("express");
-const amqp        = require("amqplib");
-const templates   = require("./emails/templates");
-const transporter = require("./emails/mailer");
-
+const express   = require("express");
+const amqp      = require("amqplib");
+const templates = require("./emails/templates");
+const mailer    = require("./emails/mailer");
+const validateEmail = require('./middleware/validateEmail');
 const app          = express();
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
 const QUEUE_NAME   = process.env.QUEUE_NAME   || "email_queue";
 const PORT         = process.env.PORT         || 3001;
-const GMAIL_USER   = process.env.GMAIL_USER;
+const SENDER_EMAIL = process.env.SENDER_EMAIL;
 
 app.use(express.json());
 
 let publishChannel = null;
 
-app.post("/send-email", async (req, res) => {
-  const { to, tipoAviso, fecha, fechaAnterior, fechaNueva } = req.body;
-
-  if (!to || !tipoAviso) {
-    return res.status(400).json({ error: "Faltan campos requeridos: to, tipoAviso" });
-  }
-
-  if (!publishChannel) {
+app.post("/send-email", validateEmail, async (req, res) => {
+  if (!publishChannel)
     return res.status(503).json({ error: "RabbitMQ aún no está listo, reintenta en unos segundos" });
-  }
-
-  let email;
-
-  if (tipoAviso === "citaConfirmada") {
-    if (!fecha)
-      return res.status(400).json({ error: "citaConfirmada requiere: fecha " });
-    email = templates.citaConfirmada(to, fecha);
-
-  } else if (tipoAviso === "citaEliminada") {
-    if (!fecha)
-      return res.status(400).json({ error: "citaEliminada requiere: fecha" });
-    email = templates.citaEliminada(to, fecha);
-
-  } else if (tipoAviso === "citaCambiada") {
-    if (!fechaAnterior || !fechaNueva )
-      return res.status(400).json({ error: "citaCambiada requiere: fechaAnterior, fechaNueva" });
-    email = templates.citaCambiada(to, fechaAnterior, fechaNueva);
-
-  } else {
-    return res.status(400).json({ error: `tipoAviso desconocido: "${tipoAviso}"` });
-  }
 
   try {
     publishChannel.sendToQueue(
       QUEUE_NAME,
-      Buffer.from(JSON.stringify({ ...email, enqueuedAt: new Date().toISOString() })),
+      Buffer.from(JSON.stringify({ ...req.email, enqueuedAt: new Date().toISOString() })),
       { persistent: true }
     );
-    console.log(`[producer] Queued ${tipoAviso} → ${to}`);
-    res.json({ ok: true, message: `Correo en cola para ${to}` });
+    console.log(`[producer] Queued ${req.body.tipoAviso} → ${req.body.to}`);
+    res.json({ ok: true, message: `Correo en cola para ${req.body.to}` });
   } catch (err) {
     console.error("[producer] Queue error:", err.message);
-    res.status(500).json({ error: "No se pudo poner la cola el correo" });
+    res.status(500).json({ error: "No se pudo colocar en cola el correo" });
   }
 });
 
@@ -74,13 +46,6 @@ async function startBackgroundServices() {
     publishChannel = channel;
     console.log("[rabbitmq] Conectado a RabbitMQ");
 
-    try {
-      await transporter.verify();
-      console.log("[consumer] Gmail SMTP listo");
-    } catch (gmailErr) {
-      console.warn("[consumer] Gmail SMTP no disponible:", gmailErr.message);
-    }
-
     channel.prefetch(1);
     console.log(`[consumer] Esperando correos en la cola: "${QUEUE_NAME}"`);
 
@@ -91,14 +56,14 @@ async function startBackgroundServices() {
       console.log(`[consumer] Enviando → ${payload.to} | "${payload.subject}"`);
 
       try {
-        const result = await transporter.sendMail({
-          from:    `"RedNorte Notificaciones" <${GMAIL_USER}>`,
-          to:      payload.to,
-          subject: payload.subject,
-          text:    payload.text,
+        await mailer.sendTransacEmail({
+          sender:      { name: "RedNorte Notificaciones", email: SENDER_EMAIL },
+          to:          [{ email: payload.to }],
+          subject:     payload.subject,
+          textContent: payload.text,
         });
 
-        console.log(`[consumer] Enviado! Message ID: ${result.messageId}`);
+        console.log(`[consumer] Enviado! → ${payload.to}`);
         channel.ack(msg);
 
       } catch (err) {
@@ -107,7 +72,6 @@ async function startBackgroundServices() {
         channel.nack(msg, false, requeue);
       }
     });
-
   } catch (err) {
     console.error("[startup] Error conectando servicios:", err.message);
     process.exit(1);
