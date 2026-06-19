@@ -15,7 +15,7 @@ const templates = {
   citaCambiada: (toEmail, fechaAnterior, fechaNueva) => ({
     to:      toEmail,
     subject: "Cambio de cita — RedNorte",
-    text:    `Su cita del día ha sido reprogramada al día ${fechaNueva}. Muchas Gracias.\n\nRedNorte Gestión Médica`,
+    text:    `Su cita del día ${fechaAnterior} ha sido reprogramada al día ${fechaNueva}. Muchas Gracias.\n\nRedNorte Gestión Médica`,
   }),
 };
 
