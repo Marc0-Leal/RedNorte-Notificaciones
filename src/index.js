@@ -1,14 +1,12 @@
 require("dotenv").config();
 const express   = require("express");
 const amqp      = require("amqplib");
-const templates = require("./emails/templates");
-const mailer    = require("./emails/mailer");
-const validateEmail = require('./middleware/validateEmail');
+const sendEmail = require('./emails/mailer');
+const validateEmail = require('./middleware/validacionesEmail');
 const app          = express();
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
 const QUEUE_NAME   = process.env.QUEUE_NAME   || "email_queue";
 const PORT         = process.env.PORT         || 3001;
-const SENDER_EMAIL = process.env.SENDER_EMAIL;
 
 app.use(express.json());
 
@@ -56,16 +54,9 @@ async function startBackgroundServices() {
       console.log(`[consumer] Enviando → ${payload.to} | "${payload.subject}"`);
 
       try {
-        await mailer.sendTransacEmail({
-          sender:      { name: "RedNorte Notificaciones", email: SENDER_EMAIL },
-          to:          [{ email: payload.to }],
-          subject:     payload.subject,
-          textContent: payload.text,
-        });
-
+        await sendEmail(payload.to, payload.subject, payload.text);
         console.log(`[consumer] Enviado! → ${payload.to}`);
         channel.ack(msg);
-
       } catch (err) {
         console.error(`[consumer] Falló: ${err.message}`);
         const requeue = !msg.fields.redelivered;

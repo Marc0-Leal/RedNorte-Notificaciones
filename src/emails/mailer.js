@@ -1,7 +1,22 @@
-const Brevo = require('@getbrevo/brevo');
+const sendEmail = async (to, subject, text) => {
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key':     process.env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender:      { name: 'RedNorte', email: process.env.SENDER_EMAIL },
+      to:          [{ email: to }],
+      subject:     subject,
+      textContent: text,
+    }),
+  });
 
-const client = Brevo.ApiClient.instance;
-client.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Brevo API error');
+  }
+};
 
-const mailer = new Brevo.TransactionalEmailsApi();
-module.exports = mailer;
+module.exports = sendEmail;
