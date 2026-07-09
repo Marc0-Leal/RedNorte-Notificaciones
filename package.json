@@ -4,12 +4,15 @@
   "description": "",
   "scripts": {
     "producer": "node producer.js",
-    "consumer": "node consumer.js"
+    "consumer": "node consumer.js",
+    "test": "node --test src/tests/templatesTest.js src/tests/validacionesTest.js src/tests/producerTest.js"
   },
   "dependencies": {
     "amqplib": "^0.10.4",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
     "nodemailer": "^6.9.13",
-    "dotenv": "^16.4.5"
+    "resend": "^6.12.4"
   },
   "keywords": [],
   "author": "",
