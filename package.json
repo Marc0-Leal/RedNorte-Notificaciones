@@ -4,7 +4,8 @@
   "description": "",
   "scripts": {
     "producer": "node producer.js",
-    "consumer": "node consumer.js"
+    "consumer": "node consumer.js",
+    "test": "node --test src/tests/templatesTest.js src/tests/validacionesTest.js src/tests/producerTest.js"
   },
   "dependencies": {
     "amqplib": "^0.10.4",
